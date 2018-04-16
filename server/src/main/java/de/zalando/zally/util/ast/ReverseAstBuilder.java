@@ -4,7 +4,6 @@ import com.fasterxml.jackson.annotation.JsonAnyGetter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import javax.annotation.Nullable;
-import javax.validation.constraints.NotNull;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
@@ -15,6 +14,10 @@ import java.util.IdentityHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+
+import static de.zalando.zally.util.ast.Util.getterNameToPointer;
+import static de.zalando.zally.util.ast.Util.rfc6901Encode;
 
 public class ReverseAstBuilder<T> {
     private static Collection<String> EXTENSION_METHOD_NAMES = new HashSet<>(Arrays.asList(
@@ -30,14 +33,7 @@ public class ReverseAstBuilder<T> {
 
     private final Deque<Node> nodes = new LinkedList<>(); // stack of tree nodes
     private final Map<Object, Node> map = new IdentityHashMap<>(); // map of node objects to JSON pointers
-    private final Collection<Class<?>> ignore = new HashSet<>(Arrays.asList(
-            String.class,
-            Integer.class,
-            Float.class,
-            Double.class,
-            Boolean.class,
-            Enum.class
-    ));
+    private final Set<Class<?>> ignore = new HashSet<>(Util.PRIMITIVES);
 
     ReverseAstBuilder(T root) {
         nodes.push(new Node(root, "#", null));
@@ -132,7 +128,7 @@ public class ReverseAstBuilder<T> {
                             // We must not use the method name but re-use the current pointer.
                             nodes.push(new Node(value, pointer, marker, /* skip */true));
                         } else {
-                            String newPointer = pointer.concat("/").concat(getterNameToPathName(name));
+                            String newPointer = pointer.concat("/").concat(getterNameToPointer(name));
                             nodes.push(new Node(value, newPointer, marker));
                         }
                     }
@@ -150,18 +146,6 @@ public class ReverseAstBuilder<T> {
                 && m.getParameterCount() == 0
                 && Modifier.isPublic(m.getModifiers())
                 && !m.isAnnotationPresent(JsonIgnore.class);
-    }
-
-    @NotNull
-    static String rfc6901Encode(String s) {
-        // https://tools.ietf.org/html/rfc6901
-        return s.replace("~", "~0").replace("/", "~1");
-    }
-
-    @NotNull
-    static String getterNameToPathName(String name) {
-        String s = name.substring(3); // `get` is first 3 characters
-        return s.substring(0, 1).toLowerCase().concat(s.substring(1));
     }
 
     @Nullable
