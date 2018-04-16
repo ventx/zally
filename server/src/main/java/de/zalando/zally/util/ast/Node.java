@@ -7,7 +7,7 @@ import java.util.LinkedList;
 /**
  * A stack node for tree-traversal.
  */
-final class Node {
+public final class Node {
     Node parent;
     private Collection<Node> children;
     final Object object;

@@ -16,7 +16,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
-public class ReverseAstBuilder {
+public class ReverseAstBuilder<T> {
     private static Collection<String> EXTENSION_METHOD_NAMES = new HashSet<>(Arrays.asList(
             "getVendorExtensions",
             "getExtensions"
@@ -39,7 +39,7 @@ public class ReverseAstBuilder {
             Enum.class
     ));
 
-    ReverseAstBuilder(Object root) {
+    ReverseAstBuilder(T root) {
         nodes.push(new Node(root, "#", null));
     }
 
@@ -61,7 +61,7 @@ public class ReverseAstBuilder {
      * @return A new ReverseAst instance.
      * @throws ReverseAstException If an error occurs during reflection.
      */
-    public ReverseAst build() throws ReverseAstException {
+    public ReverseAst<T> build() throws ReverseAstException {
         while (!nodes.isEmpty()) {
             Node node = nodes.pop();
 
@@ -83,7 +83,7 @@ public class ReverseAstBuilder {
                 map.put(node.object, node);
             }
         }
-        return new ReverseAst(map);
+        return new ReverseAst<>(map);
     }
 
     static Deque<Node> handleMap(Map<?, ?> map, String pointer, Marker marker) {

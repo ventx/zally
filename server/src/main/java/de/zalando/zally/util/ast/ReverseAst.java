@@ -9,15 +9,15 @@ import java.util.Map;
 /**
  * ReverseAst holds meta information for nodes of a Swagger or OpenApi object.
  */
-public class ReverseAst {
+public class ReverseAst<T> {
     /**
      * Creates a new instance of ReverseAstBuilder from a Swagger or OpenApi object.
      *
      * @param root Swagger or OpenApi instance.
      * @return ReverseAstBuilder instance.
      */
-    public static ReverseAstBuilder fromObject(Object root) {
-        return new ReverseAstBuilder(root);
+    public static <T> ReverseAstBuilder<T> fromObject(T root) {
+        return new ReverseAstBuilder<>(root);
     }
 
     private final Map<Object, Node> map;
