@@ -1,146 +1,144 @@
 package de.zalando.zally.util.ast
 
+import de.zalando.zally.rule.ObjectTreeReader
 import de.zalando.zally.util.ResourceUtil.resourceToString
 import io.swagger.parser.OpenAPIParser
 import io.swagger.parser.SwaggerParser
-import io.swagger.v3.parser.converter.SwaggerConverter
+import io.swagger.util.Json
 import io.swagger.v3.parser.core.models.ParseOptions
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.Test
-import java.util.*
 
 class ReverseAstTest {
-    private val ignore = HashSet(Arrays.asList(
-            io.swagger.models.ArrayModel::class.java,
-            io.swagger.models.ComposedModel::class.java,
-            io.swagger.models.ModelImpl::class.java
-    )) as Collection<Class<*>>?
-
     @Test
-    fun `create with Swagger 2 JSON pointers`() {
+    fun `create JSON pointers from Swagger 2 object`() {
         val content = """
-            {
-              "swagger": "2.0",
-              "info": {
-                "title": "Things API",
-                "description": "Description of things",
-                "version": "1.0.0"
-              },
-              "paths": {
-                "/tests": {
-                  "get": {
-                    "responses": {
-                      "200": {
-                        "description": "OK"
-                      }
-                    }
-                  }
-                }
-              }
-            }
+            swagger: '2.0'
+            info:
+              title: Things API
+              description: Description of things
+              version: '1.0.0'
+            paths:
+              "/tests":
+                get:
+                  responses:
+                    '200':
+                      description: OK
             """.trimIndent()
 
         val spec = SwaggerParser().parse(content)
-        val ast = ReverseAst.fromObject(spec).ignore(ignore).build()
+        val ast = ReverseAst.fromObject(spec).build()
 
         val description = spec.paths?.get("/tests")?.get?.responses?.get("200")?.description
         assertThat(ast.getPointer(description)).isEqualTo("#/paths/~1tests/get/responses/200/description")
     }
 
     @Test
-    fun `create with Swagger 2 ignore marker`() {
+    fun `create ignore marker from Swagger 2 object`() {
         val content = """
-            {
-              "swagger": "2.0",
-              "info": {
-                "title": "Things API",
-                "description": "Description of things",
-                "version": "1.0.0"
-              },
-              "paths": {
-                "/tests": {
-                  "x-zally-ignore": "*",
-                  "get": {
-                    "responses": {
-                      "200": {
-                        "description": "OK"
-                      }
-                    }
-                  }
-                }
-              }
-            }
+            swagger: '2.0'
+            info:
+              title: Things API
+              description: Description of things
+              version: '1.0.0'
+            paths:
+              "/tests":
+                x-zally-ignore: "*"
+                get:
+                  responses:
+                    '200':
+                      description: OK
+              "/others":
+                get:
+                  responses:
+                    '200':
+                      description: OK
             """.trimIndent()
 
         val spec = SwaggerParser().parse(content)
-        val ast = ReverseAst.fromObject(spec).ignore(ignore).build()
+        val ast = ReverseAst.fromObject(spec).withExtensionMethodNames("getVendorExtensions").build()
 
-        val description = spec.paths?.get("/tests")?.get?.responses?.get("200")?.description
-        assertThat(ast.isIgnored(description)).isTrue()
-        assertThat(ast.getIgnoreValue(description)).isEqualTo("*")
+        var pointer = "#/paths/~1tests/get/responses/200/description"
+        assertThat(ast.isIgnored(pointer, "*")).isTrue()
+        assertThat(ast.getIgnoreValues("#/paths/~1tests/get/responses/200/description")).hasSize(1).contains("*")
 
-        val get = spec.paths?.get("/tests")?.get
-        assertThat(ast.isIgnored(get)).isTrue()
-        assertThat(ast.getIgnoreValue(get)).isEqualTo("*")
+        pointer = "#/paths/~1tests/get"
+        assertThat(ast.isIgnored(pointer, "*")).isTrue()
+        assertThat(ast.getIgnoreValues(pointer)).hasSize(1).contains("*")
 
-        val testsPath = spec.paths?.get("/tests")
-        assertThat(ast.isIgnored(testsPath)).isFalse()
-        assertThat(ast.getIgnoreValue(testsPath)).isNull()
+        pointer = "#/paths/~1tests"
+        assertThat(ast.isIgnored(pointer, "*")).isTrue()
+        assertThat(ast.getIgnoreValues(pointer)).hasSize(1).contains("*")
+
+        pointer = "#/paths"
+        assertThat(ast.isIgnored(pointer, "*")).isFalse()
+        assertThat(ast.getIgnoreValues(pointer)).isEmpty()
+
+        pointer = "#/paths/others"
+        assertThat(ast.isIgnored(pointer, "*")).isFalse()
+        assertThat(ast.getIgnoreValues(pointer)).isEmpty()
     }
 
     @Test
     fun `create from Swagger 2 document`() {
         val content = resourceToString("fixtures/swagger2_petstore_expanded.yaml")
         val spec = SwaggerParser().parse(content)
-        val ast = ReverseAst.fromObject(spec).ignore(ignore).build()
+        val ast = ReverseAst.fromObject(spec).build()
         assertThat(ast.getPointer(spec)).isEqualTo("#")
     }
 
     @Test
     fun `create from OpenApi 3 document`() {
-        val content = resourceToString("fixtures/openapi3_petstore_expanded.yaml")
+        val content = resourceToString("fixtures/openapi3_petstore_expanded.json")
         val spec = OpenAPIParser().readContents(content, null, ParseOptions())
-        val ast = ReverseAst.fromObject(spec).ignore(ignore).build()
+        val ast = ReverseAst.fromObject(spec).build()
         assertThat(ast.getPointer(spec)).isEqualTo("#")
     }
 
     @Test
-    fun `with conversion from Swagger 2 and identical AST values`() {
-        val content = resourceToString("fixtures/swagger2_petstore_expanded.yaml")
-        val swaggerDeserializationResult = SwaggerParser().readWithInfo(content)
-        val swaggerSpec = swaggerDeserializationResult.swagger
-        val openApiSpec = SwaggerConverter().convert(swaggerDeserializationResult).openAPI
+    fun `create ignore marker from Swagger 2 JSON Node`() {
+        val content = """
+            swagger: '2.0'
+            info:
+              title: Things API
+              description: Description of things
+              version: '1.0.0'
+            paths:
+              "/tests":
+                x-zally-ignore: "*"
+                get:
+                  responses:
+                    '200':
+                      description: OK
+              "/others":
+                get:
+                  responses:
+                    '200':
+                      description: OK
+            """.trimIndent()
 
-        val openApiAst = ReverseAst.fromObject(openApiSpec).ignore(ignore).build()
-        val swaggerAst = ReverseAst.fromObject(swaggerSpec).ignore(ignore).build()
+        val json = ObjectTreeReader().read(content)
+        val map = Json.mapper().convertValue(json, Map::class.java)
+        val ast = ReverseAst.fromObject(map).build()
 
-        val description = openApiSpec.paths?.get("/pets")?.get?.responses?.default?.description
+        var pointer = "#/paths/~1tests/get/responses/200/description"
+        assertThat(ast.isIgnored(pointer, "*")).isTrue()
+        assertThat(ast.getIgnoreValues("#/paths/~1tests/get/responses/200/description")).hasSize(1).contains("*")
 
-        assertThat(description).isEqualTo("unexpected error")
-        assertThat(openApiAst.getPointer(description)).isEqualTo("#/paths/~1pets/get/responses/default/description")
-        assertThat(swaggerAst.getPointer(description)).isEqualTo("#/paths/~1pets/get/responses/default/description")
-    }
+        pointer = "#/paths/~1tests/get"
+        assertThat(ast.isIgnored(pointer, "*")).isTrue()
+        assertThat(ast.getIgnoreValues(pointer)).hasSize(1).contains("*")
 
-    @Test
-    fun `with conversion from Swagger 2 document and incompatible AST values`() {
-        val content = resourceToString("fixtures/swagger2_petstore_expanded.yaml")
-        val swaggerDeserializationResult = SwaggerParser().readWithInfo(content)
-        val swaggerSpec = swaggerDeserializationResult.swagger
-        val openApiSpec = SwaggerConverter().convert(swaggerDeserializationResult).openAPI
+        pointer = "#/paths/~1tests"
+        assertThat(ast.isIgnored(pointer, "*")).isTrue()
+        assertThat(ast.getIgnoreValues(pointer)).hasSize(1).contains("*")
 
-        val openApiAst = ReverseAst.fromObject(openApiSpec).build()
-        val swaggerAst = ReverseAst.fromObject(swaggerSpec).build()
+        pointer = "#/paths"
+        assertThat(ast.isIgnored(pointer, "*")).isFalse()
+        assertThat(ast.getIgnoreValues(pointer)).isEmpty()
 
-        val openApiPet = openApiSpec.components.schemas["Pet"]
-        val openApiPetNode = openApiAst.getNode(openApiPet)
-
-        assertThat(openApiAst.getPointer(openApiPet)).isEqualTo("#/components/schemas/Pet")
-        assertThat(swaggerAst.getPointer(openApiPetNode)).isEqualTo("#/definitions/Pet")
-
-        val openApiUrl = openApiSpec.servers[0].url
-        val openApiUrlNode = openApiAst.getNode(openApiUrl)
-
-        assertThat(openApiAst.getPointer(openApiUrl)).isEqualTo("#/servers/0/url")
-        assertThat(swaggerAst.getPointer(openApiUrlNode)).isEqualTo("#/basePath")
+        pointer = "#/paths/others"
+        assertThat(ast.isIgnored(pointer, "*")).isFalse()
+        assertThat(ast.getIgnoreValues(pointer)).isEmpty()
     }
 }
