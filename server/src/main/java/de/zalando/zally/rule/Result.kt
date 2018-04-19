@@ -10,7 +10,7 @@ data class Result(
     val rule: Rule,
     val description: String,
     val violationType: Severity,
-    val paths: List<String>
+    val pointer: String
 ) {
-    fun toViolation(): Violation = Violation(description, paths)
+    fun toViolation(): Violation = Violation(description, pointer)
 }

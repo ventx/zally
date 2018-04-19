@@ -1,10 +1,11 @@
 package de.zalando.zally.util.ast;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collection;
-import java.util.Deque;
-import java.util.LinkedList;
+import java.util.Collections;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * ReverseAst holds meta information for nodes of a Swagger or OpenApi object.
@@ -16,83 +17,67 @@ public class ReverseAst<T> {
      * @param root Swagger or OpenApi instance.
      * @return ReverseAstBuilder instance.
      */
-    public static <T> ReverseAstBuilder<T> fromObject(T root) {
+    @Nonnull
+    public static <T> ReverseAstBuilder<T> fromObject(@Nonnull T root) {
         return new ReverseAstBuilder<>(root);
     }
 
-    private final Map<Object, Node> map;
+    private final Map<Object, Node> objectsToNodes;
+    private final Map<String, Node> pointersToNodes;
 
-    ReverseAst(Map<Object, Node> map) {
-        this.map = map;
-    }
-
-    @Nullable
-    public Node getNode(Object key) {
-        return this.map.get(key);
-    }
-
-    /**
-     * Find a pointer for a given Node (typically from another AST).
-     * <p>
-     * A pointer can be found if the object value of the given root node or
-     * of any of its children exists in this AST.
-     *
-     * @param key Node and object value from another AST.
-     * @return JSON pointer or null.
-     */
-    @Nullable
-    public String getPointer(Node key) {
-        Node nodeForKey = this.map.get(key.object);
-        if (nodeForKey != null) {
-            return nodeForKey.pointer;
-        }
-
-        Deque<Collection<Node>> siblings = new LinkedList<>();
-        siblings.push(key.getChildren());
-        int depth = 0; // count how many layers of siblings we have descended
-
-        while (!siblings.isEmpty()) {
-            depth++;
-            Collection<Node> children = siblings.pop();
-
-            for (Node child : children) {
-                Node childNode = this.map.get(child.object);
-                if (childNode != null) {
-                    // we have found a matching object value for a nested child node of the original key node
-                    // now we need to ascend the chain of nodes back up for as many layers of siblings as we descended
-                    while (depth > 0 && childNode.parent != null) {
-                        depth--;
-                        childNode = childNode.parent;
-                    }
-                    return childNode.pointer;
-                }
-                siblings.push(child.getChildren());
-            }
-        }
-        // Fall back on converting the input pointer.
-        return JsonPointers.convertPointer(key.pointer);
+    ReverseAst(Map<Object, Node> objectsToNodes, Map<String, Node> pointersToNodes) {
+        this.objectsToNodes = objectsToNodes;
+        this.pointersToNodes = pointersToNodes;
     }
 
     @Nullable
     public String getPointer(Object key) {
-        Node node = this.map.get(key);
+        Node node = this.objectsToNodes.get(key);
         if (node != null) {
             return node.pointer;
         }
         return null;
     }
 
-    public boolean isIgnored(Object key) {
-        Node node = this.map.get(key);
-        return node != null && node.marker != null && Marker.TYPE_X_ZALLY_IGNORE.equals(node.marker.type);
+    public boolean isIgnored(String pointer, String ignoreValue) {
+        return isIgnored(this.pointersToNodes.get(pointer), ignoreValue);
     }
 
-    @Nullable
-    public String getIgnoreValue(Object key) {
-        Node node = this.map.get(key);
-        if (node != null && node.marker != null && Marker.TYPE_X_ZALLY_IGNORE.equals(node.marker.type)) {
-            return node.marker.value;
+    private boolean isIgnored(Node node, String ignoreValue) {
+        if (node == null) {
+            return false;
         }
-        return null;
+        boolean ignored = isIgnored(node.marker, ignoreValue);
+        return ignored || node.getChildren().parallelStream().allMatch(child -> isIgnored(child.marker, ignoreValue));
+    }
+
+    private boolean isIgnored(Marker marker, String ignoreValue) {
+        return marker != null && Marker.TYPE_X_ZALLY_IGNORE.equals(marker.type) && marker.values.contains(ignoreValue);
+    }
+
+    public Collection<String> getIgnoreValues(String pointer) {
+        return getIgnoreValues(this.pointersToNodes.get(pointer));
+    }
+
+    private Collection<String> getIgnoreValues(Node node) {
+        if (node == null) {
+            return Collections.emptySet();
+        }
+        Collection<String> markers = getIgnoreValues(node.marker);
+        if (!markers.isEmpty()) {
+            return markers;
+        }
+        return node
+                .getChildren()
+                .parallelStream()
+                .flatMap(child -> getIgnoreValues(child.marker).stream())
+                .collect(Collectors.toSet());
+    }
+
+    private Collection<String> getIgnoreValues(Marker marker) {
+        if (marker != null && Marker.TYPE_X_ZALLY_IGNORE.equals(marker.type)) {
+            return marker.values;
+        }
+        return Collections.emptySet();
     }
 }

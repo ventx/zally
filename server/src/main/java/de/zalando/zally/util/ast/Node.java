@@ -1,14 +1,15 @@
 package de.zalando.zally.util.ast;
 
-import javax.validation.constraints.NotNull;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.LinkedList;
 
 /**
  * A stack node for tree-traversal.
  */
-public final class Node {
-    Node parent;
+final class Node {
+    private Node parent;
     private Collection<Node> children;
     final Object object;
     final String pointer;
@@ -36,7 +37,12 @@ public final class Node {
         return this;
     }
 
-    @NotNull
+    @Nullable
+    Node getParent() {
+        return parent;
+    }
+
+    @Nonnull
     Collection<Node> getChildren() {
         if (children == null) {
             return new LinkedList<>();

@@ -3,27 +3,29 @@ package de.zalando.zally.util.ast;
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static de.zalando.zally.util.ast.Util.getterNameToPointer;
 import static de.zalando.zally.util.ast.Util.rfc6901Encode;
 
 public class ReverseAstBuilder<T> {
-    private static Collection<String> EXTENSION_METHOD_NAMES = new HashSet<>(Arrays.asList(
-            "getVendorExtensions",
-            "getExtensions"
-    ));
+    private Collection<String> extensionMethodNames = new HashSet<>();
 
     public static class ReverseAstException extends Exception {
         ReverseAstException(String message, Throwable cause) {
@@ -31,22 +33,17 @@ public class ReverseAstBuilder<T> {
         }
     }
 
-    private final Deque<Node> nodes = new LinkedList<>(); // stack of tree nodes
-    private final Map<Object, Node> map = new IdentityHashMap<>(); // map of node objects to JSON pointers
+    private final Deque<Node> nodes = new LinkedList<>();
+    private final Map<Object, Node> objectsToNodes = new IdentityHashMap<>();
+    private final Map<String, Node> pointersToNodes = new HashMap<>();
     private final Set<Class<?>> ignore = new HashSet<>(Util.PRIMITIVES);
 
     ReverseAstBuilder(T root) {
         nodes.push(new Node(root, "#", null));
     }
 
-    /**
-     * Add classes that should not be traversed by the ReverseAstBuilder.
-     *
-     * @param ignore Set of classes in the root object that should be ignored.
-     * @return This ReverseAstBuilder.
-     */
-    public ReverseAstBuilder ignore(Collection<Class<?>> ignore) {
-        this.ignore.addAll(ignore);
+    public ReverseAstBuilder<T> withExtensionMethodNames(String... names) {
+        this.extensionMethodNames.addAll(Arrays.asList(names));
         return this;
     }
 
@@ -57,6 +54,7 @@ public class ReverseAstBuilder<T> {
      * @return A new ReverseAst instance.
      * @throws ReverseAstException If an error occurs during reflection.
      */
+    @Nonnull
     public ReverseAst<T> build() throws ReverseAstException {
         while (!nodes.isEmpty()) {
             Node node = nodes.pop();
@@ -76,14 +74,16 @@ public class ReverseAstBuilder<T> {
                 node.setChildren(children);
             }
             if (!node.skip) {
-                map.put(node.object, node);
+                objectsToNodes.put(node.object, node);
+                pointersToNodes.put(node.pointer, node);
             }
         }
-        return new ReverseAst<>(map);
+        return new ReverseAst<>(objectsToNodes, pointersToNodes);
     }
 
-    static Deque<Node> handleMap(Map<?, ?> map, String pointer, Marker marker) {
+    private Deque<Node> handleMap(Map<?, ?> map, String pointer, Marker marker) {
         Deque<Node> nodes = new LinkedList<>();
+        marker = getMarker(map).orElse(marker);
 
         for (Map.Entry<?, ?> entry : map.entrySet()) {
             Object key = entry.getKey();
@@ -96,7 +96,7 @@ public class ReverseAstBuilder<T> {
         return nodes;
     }
 
-    static Deque<Node> handleList(List<?> list, String pointer, Marker marker) {
+    private Deque<Node> handleList(List<?> list, String pointer, Marker marker) {
         Deque<Node> nodes = new LinkedList<>();
 
         for (int i = 0; i < list.size(); i++) {
@@ -109,13 +109,10 @@ public class ReverseAstBuilder<T> {
         return nodes;
     }
 
-    static Deque<Node> handleObject(Object object, String pointer, Marker marker) throws ReverseAstException {
+    private Deque<Node> handleObject(Object object, String pointer, Marker marker) throws ReverseAstException {
         Deque<Node> nodes = new LinkedList<>();
-        String ignoreExtension = getVendorExtension(object, Marker.TYPE_X_ZALLY_IGNORE);
+        marker = getMarker(object).orElse(marker);
 
-        if (ignoreExtension != null) {
-            marker = new Marker(Marker.TYPE_X_ZALLY_IGNORE, ignoreExtension);
-        }
         for (Method m : object.getClass().getDeclaredMethods()) {
             String name = m.getName();
             // Find all public getter methods.
@@ -141,25 +138,54 @@ public class ReverseAstBuilder<T> {
         return nodes;
     }
 
-    static boolean isPublicGetterMethod(Method m) {
+    private boolean isPublicGetterMethod(Method m) {
         return m.getName().startsWith("get")
                 && m.getParameterCount() == 0
                 && Modifier.isPublic(m.getModifiers())
                 && !m.isAnnotationPresent(JsonIgnore.class);
     }
 
+    private Optional<Marker> getMarker(Map<?, ?> map) {
+        return Optional
+                .ofNullable(getVendorExtensions(map, Marker.TYPE_X_ZALLY_IGNORE))
+                .map(values -> new Marker(Marker.TYPE_X_ZALLY_IGNORE, values));
+    }
+
+    private Optional<Marker> getMarker(Object object) throws ReverseAstException {
+        return Optional
+                .ofNullable(getVendorExtensions(object, Marker.TYPE_X_ZALLY_IGNORE))
+                .map(values -> new Marker(Marker.TYPE_X_ZALLY_IGNORE, values));
+    }
+
     @Nullable
-    static String getVendorExtension(Object object, String extension) throws ReverseAstException {
+    private Collection<String> getVendorExtensions(Object object, String extensionName) throws ReverseAstException {
+        if (object instanceof Map) {
+            return getVendorExtensions((Map) object, extensionName);
+        }
         for (Method m : object.getClass().getDeclaredMethods()) {
-            if (EXTENSION_METHOD_NAMES.contains(m.getName())) {
+            if (extensionMethodNames.contains(m.getName())) {
                 try {
                     Object extensions = m.invoke(object);
                     if (extensions instanceof Map) {
-                        return (String) ((Map) extensions).get(extension);
+                        return getVendorExtensions((Map) extensions, extensionName);
                     }
                 } catch (ReflectiveOperationException e) {
                     throw new ReverseAstException("Error getting extensions.", e);
                 }
+            }
+        }
+        return null;
+    }
+
+    @Nullable
+    private Collection<String> getVendorExtensions(Map<?, ?> map, String extensionName) {
+        if (map.containsKey(extensionName)) {
+            Object value = ((Map) map).get(extensionName);
+            if (value instanceof String) {
+                return Collections.singleton((String) value);
+            }
+            if (value instanceof Collection) {
+                return ((Collection<?>) value).stream().map(Object::toString).collect(Collectors.toSet());
             }
         }
         return null;

@@ -7,5 +7,5 @@ data class ViolationDTO(
     var description: String? = null,
     var violationType: Severity? = null,
     var ruleLink: String? = null,
-    var paths: List<String>? = null
+    var pointer: String? = null
 )

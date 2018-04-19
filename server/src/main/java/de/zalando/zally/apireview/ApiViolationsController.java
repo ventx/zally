@@ -95,7 +95,7 @@ public class ApiViolationsController {
                 violation.getDescription(),
                 violation.getViolationType(),
                 violation.getRuleSet().url(violation.getRule()).toString(),
-                violation.getPaths()
+                violation.getPointer()
         );
     }
 

@@ -3,21 +3,24 @@ package de.zalando.zally.util.ast;
 import org.aopalliance.intercept.MethodInterceptor;
 import org.springframework.aop.framework.ProxyFactory;
 
+import javax.annotation.Nonnull;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Set;
 
 import static de.zalando.zally.util.ast.Util.getterNameToPointer;
 import static de.zalando.zally.util.ast.Util.rfc6901Encode;
 
-final class MethodCallRecorder<T> {
+public final class MethodCallRecorder<T> {
     static class MethodCallRecorderException extends Throwable {
         MethodCallRecorderException(String message) {
             super(message);
@@ -72,31 +75,44 @@ final class MethodCallRecorder<T> {
     }
 
     static String toPointer(String s) {
-        return rfc6901Encode(getterNameToPointer(s));
+        return "/".concat(rfc6901Encode(getterNameToPointer(s)));
     }
 
-    static void appendToPointer(StringBuilder pointer, Method m, Object... arguments) {
+    static String toPointer(Method m, Object... arguments) {
         String s = m.getName();
         if (arguments.length > 0) {
             s = s.concat(arguments[0].toString());
         }
-        pointer.append("/").append(toPointer(s));
+        return toPointer(s);
     }
 
-    private final StringBuilder pointer;
-    private final T rootObject;
+    private final T proxy;
+    private String currentPointer;
+    private final Set<String> skipMethods;
+    private final IdentityHashMap<Object, String> objectPointerCache;
+    private final IdentityHashMap<Object, IdentityHashMap<Method, String>> methodPointerCache;
 
-    MethodCallRecorder(T object) {
-        this.pointer = new StringBuilder("#");
-        this.rootObject = object;
+    public MethodCallRecorder(T object) {
+        this.currentPointer = "#";
+        this.skipMethods = new HashSet<>();
+        this.objectPointerCache = new IdentityHashMap<>();
+        this.methodPointerCache = new IdentityHashMap<>();
+        this.proxy = getProxy(object, null);
     }
 
-    T createProxy() {
-        return createProxy(this.rootObject, null);
+    @Nonnull
+    public MethodCallRecorder<T> skipMethods(String... pointer) {
+        this.skipMethods.addAll(Arrays.asList(pointer));
+        return this;
+    }
+
+    @Nonnull
+    public T getProxy() {
+        return this.proxy;
     }
 
     @SuppressWarnings("unchecked")
-    private <U> U createProxy(U object, Method parent) {
+    private <U> U getProxy(U object, Method parent) {
         MethodInterceptor interceptor = createMethodInterceptor(object, parent);
         ProxyFactory factory = new ProxyFactory(object);
         factory.addAdvice(interceptor);
@@ -107,7 +123,7 @@ final class MethodCallRecorder<T> {
         return invocation -> {
             Method m = invocation.getMethod();
             Object[] arguments = invocation.getArguments();
-            appendToPointer(pointer, m, arguments);
+            updatePointer(object, m, arguments);
 
             if (!isGetterMethod(m)) {
                 return invocation.proceed();
@@ -121,18 +137,46 @@ final class MethodCallRecorder<T> {
                 }
                 if (isGenericContainer(object)) {
                     Class<?> genericReturnValueType = getGenericReturnValueType(parent);
-                    return createProxy(createInstance(genericReturnValueType), m);
+                    return getProxy(createInstance(genericReturnValueType), m);
                 }
-                return createProxy(createInstance(returnType), m);
+                return getProxy(createInstance(returnType), m);
             }
             if (isPrimitive(result)) {
                 return result;
             }
-            return createProxy(result, m);
+            return getProxy(result, m);
         };
     }
 
-    String getPointer() {
-        return this.pointer.toString();
+    private void updatePointer(Object object, Method method, Object[] arguments) {
+        if (skipMethods.contains(method.getName())) {
+            return;
+        }
+        final String objectPointer;
+        if (objectPointerCache.containsKey(object)) {
+            objectPointer = objectPointerCache.get(object);
+        } else {
+            objectPointerCache.put(object, currentPointer);
+            objectPointer = currentPointer;
+        }
+        if (methodPointerCache.containsKey(object)) {
+            Map<Method, String> methodMap = methodPointerCache.get(object);
+            if (methodMap.containsKey(method)) {
+                currentPointer = methodMap.get(method);
+            } else {
+                currentPointer = objectPointer.concat(toPointer(method, arguments));
+                methodMap.put(method, currentPointer);
+            }
+        } else {
+            IdentityHashMap<Method, String> methodMap = new IdentityHashMap<>();
+            currentPointer = objectPointer.concat(toPointer(method, arguments));
+            methodMap.put(method, currentPointer);
+            methodPointerCache.put(object, methodMap);
+        }
+    }
+
+    @Nonnull
+    public String getPointer() {
+        return this.currentPointer;
     }
 }
