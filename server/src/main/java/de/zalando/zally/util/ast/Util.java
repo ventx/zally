@@ -5,12 +5,12 @@ import java.util.List;
 
 final class Util {
     static final List<Class<?>> PRIMITIVES = Arrays.asList(
-            String.class,
-            Integer.class,
-            Float.class,
-            Double.class,
-            Boolean.class,
-            Enum.class
+        String.class,
+        Integer.class,
+        Float.class,
+        Double.class,
+        Boolean.class,
+        Enum.class
     );
 
     static String rfc6901Encode(String s) {

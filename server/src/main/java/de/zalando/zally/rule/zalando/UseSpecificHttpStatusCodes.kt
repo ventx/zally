@@ -11,17 +11,18 @@ import io.swagger.models.Swagger
 import org.springframework.beans.factory.annotation.Autowired
 
 @Rule(
-        ruleSet = ZalandoRuleSet::class,
-        id = "150",
-        severity = Severity.SHOULD,
-        title = "Use Specific HTTP Status Codes"
+    ruleSet = ZalandoRuleSet::class,
+    id = "150",
+    severity = Severity.SHOULD,
+    title = "Use Specific HTTP Status Codes"
 )
 class UseSpecificHttpStatusCodes(@Autowired rulesConfig: Config) {
     private val description = "Operations should use specific HTTP status codes"
 
     private val allowedStatusCodes = rulesConfig
-            .getConfig("${javaClass.simpleName}.allowed_codes").entrySet()
-            .map { (key, config) -> (key to config.unwrapped() as List<String>) }.toMap()
+        .getConfig("${javaClass.simpleName}.allowed_codes")
+        .entrySet()
+        .map { (key, config) -> (key to config.unwrapped() as List<String>) }.toMap()
 
     @Check(severity = Severity.SHOULD)
     fun validate(swagger: Swagger): Violation? {
@@ -40,6 +41,6 @@ class UseSpecificHttpStatusCodes(@Autowired rulesConfig: Config) {
 
     private fun getAllowedStatusCodes(httpMethod: HttpMethod): List<String> {
         return allowedStatusCodes.getOrDefault(httpMethod.name.toLowerCase(), emptyList()) +
-                allowedStatusCodes.getOrDefault("all", emptyList())
+            allowedStatusCodes.getOrDefault("all", emptyList())
     }
 }

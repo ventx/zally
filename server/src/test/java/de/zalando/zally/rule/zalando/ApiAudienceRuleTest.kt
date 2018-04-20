@@ -2,7 +2,6 @@ package de.zalando.zally.rule.zalando
 
 import de.zalando.zally.rule.Context
 import de.zalando.zally.testConfig
-import org.assertj.core.api.Assertions
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.Test
 

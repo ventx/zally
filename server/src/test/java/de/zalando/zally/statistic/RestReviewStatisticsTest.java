@@ -32,7 +32,6 @@ public class RestReviewStatisticsTest extends RestApiBaseTest {
     }
 
     @Test
-    @Ignore
     public void shouldReturnAllReviewStatisticsFromLastWeekIfNoIntervalParametersAreSupplied() {
         LocalDate from = now().minusDays(7L).toLocalDate();
 
@@ -42,7 +41,7 @@ public class RestReviewStatisticsTest extends RestApiBaseTest {
 
         assertThat(response.getReviews()).hasSize(reviews.size());
         assertThat(response.getViolations()).hasSize(1);
-        assertThat(response.getViolations().get(0).getOccurrence()).isEqualTo(reviews.size());
+        assertThat(response.getViolations().get(0).getOccurrence()).isEqualTo(1);
     }
 
     @Test

@@ -68,10 +68,10 @@ public class ReverseAst<T> {
             return markers;
         }
         return node
-                .getChildren()
-                .parallelStream()
-                .flatMap(child -> getIgnoreValues(child.marker).stream())
-                .collect(Collectors.toSet());
+            .getChildren()
+            .parallelStream()
+            .flatMap(child -> getIgnoreValues(child.marker).stream())
+            .collect(Collectors.toSet());
     }
 
     private Collection<String> getIgnoreValues(Marker marker) {

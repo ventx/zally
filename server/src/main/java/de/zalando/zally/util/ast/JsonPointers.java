@@ -18,11 +18,11 @@ final class JsonPointers {
     }
 
     private static final List<Function<String, String>> POINTER_FUNCTIONS = Arrays.asList(
-            createFn(compile("^#/servers/.*$"), "#/basePath"),
-            createFn(compile("^#/components/schemas(?<path>/.*)$"), "#/definitions"),
-            createFn(compile("^#/components/responses(?<path>/.*)$"), "#/responses"),
-            createFn(compile("^#/components/parameters(?<path>/.*)$"), "#/parameters"),
-            createFn(compile("^#/components/securitySchemes(?<path>/.*)$"), "#/securityDefinitions")
+        createFn(compile("^#/servers/.*$"), "#/basePath"),
+        createFn(compile("^#/components/schemas(?<path>/.*)$"), "#/definitions"),
+        createFn(compile("^#/components/responses(?<path>/.*)$"), "#/responses"),
+        createFn(compile("^#/components/parameters(?<path>/.*)$"), "#/parameters"),
+        createFn(compile("^#/components/securitySchemes(?<path>/.*)$"), "#/securityDefinitions")
     );
 
     private static Function<String, String> createFn(Pattern pattern, String pointerOut) {

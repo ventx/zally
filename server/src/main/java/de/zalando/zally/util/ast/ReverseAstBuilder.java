@@ -140,21 +140,21 @@ public class ReverseAstBuilder<T> {
 
     private boolean isPublicGetterMethod(Method m) {
         return m.getName().startsWith("get")
-                && m.getParameterCount() == 0
-                && Modifier.isPublic(m.getModifiers())
-                && !m.isAnnotationPresent(JsonIgnore.class);
+            && m.getParameterCount() == 0
+            && Modifier.isPublic(m.getModifiers())
+            && !m.isAnnotationPresent(JsonIgnore.class);
     }
 
     private Optional<Marker> getMarker(Map<?, ?> map) {
         return Optional
-                .ofNullable(getVendorExtensions(map, Marker.TYPE_X_ZALLY_IGNORE))
-                .map(values -> new Marker(Marker.TYPE_X_ZALLY_IGNORE, values));
+            .ofNullable(getVendorExtensions(map, Marker.TYPE_X_ZALLY_IGNORE))
+            .map(values -> new Marker(Marker.TYPE_X_ZALLY_IGNORE, values));
     }
 
     private Optional<Marker> getMarker(Object object) throws ReverseAstException {
         return Optional
-                .ofNullable(getVendorExtensions(object, Marker.TYPE_X_ZALLY_IGNORE))
-                .map(values -> new Marker(Marker.TYPE_X_ZALLY_IGNORE, values));
+            .ofNullable(getVendorExtensions(object, Marker.TYPE_X_ZALLY_IGNORE))
+            .map(values -> new Marker(Marker.TYPE_X_ZALLY_IGNORE, values));
     }
 
     @Nullable
