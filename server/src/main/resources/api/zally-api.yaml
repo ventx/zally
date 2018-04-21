@@ -9,6 +9,7 @@ info:
  contact:
    name: Team API Management
    email: team-api-management@zalando.de
+   url: http://tech.zalando.de
 
 host: "zally.overarching.zalan.do"
 
