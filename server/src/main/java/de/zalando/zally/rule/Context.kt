@@ -20,7 +20,9 @@ class Context(openApi: OpenAPI, swagger: Swagger? = null) {
         get() = recorder.pointer
 
     fun isIgnored(pointer: String, ruleId: String): Boolean =
-            swaggerAst?.isIgnored(pointer, ruleId) ?: openApiAst.isIgnored(pointer, ruleId)
+        swaggerAst?.isIgnored(pointer, ruleId) ?: openApiAst.isIgnored(pointer, ruleId)
+
+    fun pointerForValue(value: Any): String? = swaggerAst?.getPointer(value) ?: openApiAst.getPointer(value)
 
     companion object {
         val extensionNames = arrayOf("getVendorExtensions", "getExtensions")
@@ -28,6 +30,7 @@ class Context(openApi: OpenAPI, swagger: Swagger? = null) {
         fun createOpenApiContext(content: String): Context? {
             val parseOptions = ParseOptions()
             parseOptions.isResolve = true
+            parseOptions.isResolveFully = true
 
             return OpenAPIV3Parser().readContents(content, null, parseOptions)?.openAPI?.let {
                 Context(it)
@@ -35,11 +38,11 @@ class Context(openApi: OpenAPI, swagger: Swagger? = null) {
         }
 
         fun createSwaggerContext(content: String): Context? =
-                SwaggerParser().readWithInfo(content)?.let {
-                    val swagger = it.swagger ?: return null
-                    val openApi = SwaggerConverter().convert(it)?.openAPI
+            SwaggerParser().readWithInfo(content)?.let {
+                val swagger = it.swagger ?: return null
+                val openApi = SwaggerConverter().convert(it)?.openAPI
 
-                    openApi?.let { Context(openApi, swagger) }
-                }
+                openApi?.let { Context(openApi, swagger) }
+            }
     }
 }

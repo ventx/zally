@@ -97,7 +97,7 @@ public final class MethodCallRecorder<T> {
         this.skipMethods = new HashSet<>();
         this.objectPointerCache = new IdentityHashMap<>();
         this.methodPointerCache = new IdentityHashMap<>();
-        this.proxy = getProxy(object, null);
+        this.proxy = createProxy(object, null);
     }
 
     @Nonnull
@@ -112,9 +112,10 @@ public final class MethodCallRecorder<T> {
     }
 
     @SuppressWarnings("unchecked")
-    private <U> U getProxy(U object, Method parent) {
+    private <U> U createProxy(U object, Method parent) {
         MethodInterceptor interceptor = createMethodInterceptor(object, parent);
-        ProxyFactory factory = new ProxyFactory(object);
+        ProxyFactory factory = new ProxyFactory();
+        factory.setTarget(object);
         factory.addAdvice(interceptor);
         return (U) factory.getProxy();
     }
@@ -137,14 +138,14 @@ public final class MethodCallRecorder<T> {
                 }
                 if (isGenericContainer(object)) {
                     Class<?> genericReturnValueType = getGenericReturnValueType(parent);
-                    return getProxy(createInstance(genericReturnValueType), m);
+                    return createProxy(createInstance(genericReturnValueType), m);
                 }
-                return getProxy(createInstance(returnType), m);
+                return createProxy(createInstance(returnType), m);
             }
             if (isPrimitive(result)) {
                 return result;
             }
-            return getProxy(result, m);
+            return createProxy(result, m);
         };
     }
 

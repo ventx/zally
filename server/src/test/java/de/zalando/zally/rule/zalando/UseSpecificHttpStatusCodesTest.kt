@@ -1,7 +1,16 @@
 package de.zalando.zally.rule.zalando
 
-import de.zalando.zally.swaggerWithOperations
+import de.zalando.zally.openApiWithOperations
+import de.zalando.zally.rule.Context
 import de.zalando.zally.testConfig
+import io.swagger.v3.oas.models.OpenAPI
+import io.swagger.v3.oas.models.Operation
+import io.swagger.v3.oas.models.PathItem
+import io.swagger.v3.oas.models.Paths
+import io.swagger.v3.oas.models.media.Content
+import io.swagger.v3.oas.models.media.MediaType
+import io.swagger.v3.oas.models.responses.ApiResponse
+import io.swagger.v3.oas.models.responses.ApiResponses
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.Test
 
@@ -11,46 +20,90 @@ class UseSpecificHttpStatusCodesTest {
     @Test
     fun shouldPassIfOperationsAreAllowed() {
         val allowedToAll = listOf(
-                "200", "301", "400", "401", "403", "404", "405", "406", "408", "410", "428", "429",
-                "500", "501", "503", "default"
+            "200", "301", "400", "401", "403", "404", "405", "406", "408", "410", "428", "429",
+            "500", "501", "503", "default"
         )
         val operations = mapOf(
-                "get" to listOf("304") + allowedToAll,
-                "post" to listOf("201", "202", "207", "303") + allowedToAll,
-                "put" to listOf("201", "202", "204", "303", "409", "412", "415", "423") + allowedToAll,
-                "patch" to listOf("202", "204", "303", "409", "412", "415", "423") + allowedToAll,
-                "delete" to listOf("202", "204", "303", "409", "412", "415", "423") + allowedToAll
+            "get" to listOf("304") + allowedToAll,
+            "post" to listOf("201", "202", "207", "303") + allowedToAll,
+            "put" to listOf("201", "202", "204", "303", "409", "412", "415", "423") + allowedToAll,
+            "patch" to listOf("202", "204", "303", "409", "412", "415", "423") + allowedToAll,
+            "delete" to listOf("202", "204", "303", "409", "412", "415", "423") + allowedToAll
         )
 
-        val swagger = swaggerWithOperations(operations)
+        val openApi = openApiWithOperations(operations)
+        val context = Context(openApi)
 
-        assertThat(codes.validate(swagger)).isNull()
+        assertThat(codes.allowOnlySpecificStatusCodes(context)).isEmpty()
     }
 
     @Test
     fun shouldNotPassIfOperationsAreNotAllowed() {
         val notAllowedAll = listOf(
-                "203", "205", "206", "208", "226", "302", "305", "306", "307", "308", "402", "407", "411",
-                "413", "414", "416", "417", "418", "421", "422", "424", "426", "431", "451", "502", "504",
-                "505", "506", "507", "508", "510", "511", "default"
+            "203", "205", "206", "208", "226", "302", "305", "306", "307", "308", "402", "407", "411",
+            "413", "414", "416", "417", "418", "421", "422", "424", "426", "431", "451", "502", "504",
+            "505", "506", "507", "508", "510", "511"
         )
         val operations = mapOf(
-                "get" to listOf("201", "202", "204", "207", "303", "409", "412", "415", "423") + notAllowedAll,
-                "post" to listOf("204", "304", "409", "412", "415", "423") + notAllowedAll,
-                "put" to listOf("304") + notAllowedAll,
-                "patch" to listOf("201", "304") + notAllowedAll,
-                "delete" to listOf("201", "304") + notAllowedAll
+            "get" to listOf("201", "202", "204", "207", "303", "409", "412", "415", "423") + notAllowedAll,
+            "post" to listOf("204", "304", "409", "412", "415", "423") + notAllowedAll,
+            "put" to listOf("304") + notAllowedAll,
+            "patch" to listOf("201", "304") + notAllowedAll,
+            "delete" to listOf("201", "304") + notAllowedAll
         )
-        val swagger = swaggerWithOperations(operations)
 
-        val expectedPaths = operations.flatMap { method ->
-            method.value.map {
-                code -> "/test ${method.key.toUpperCase()} $code"
+        val expectedPointers = operations.flatMap { method ->
+            method.value.map { code ->
+                "#/paths/~1test/${method.key}/responses/$code"
             }
         }
 
-        val violation = codes.validate(swagger)
+        val openApi = openApiWithOperations(operations)
+        val context = Context(openApi)
+        val violations = codes.allowOnlySpecificStatusCodes(context)
 
-        assertThat(violation?.paths.orEmpty()).containsExactlyInAnyOrder(*expectedPaths.toTypedArray())
+        assertThat(violations).isNotEmpty
+        assertThat(violations.map { it.pointer }).containsExactlyInAnyOrder(*expectedPointers.toTypedArray())
+    }
+
+    @Test
+    fun shouldReportDefaultResponsesWithoutProblemType() {
+        val content = """
+        openapi: 3.0.0
+        info:
+          version: 1.0.0
+          title: Test
+        paths:
+          "/bad":
+            get:
+              responses:
+                default:
+                  description: Bad default response.
+                  content:
+                    application/json:
+                      schema:
+                        type: object
+          "/good":
+            get:
+              responses:
+                "200":
+                  description: Good response.
+                  content:
+                    application/json:
+                      schema:
+                        type: object
+                default:
+                  description: Good default response.
+                  content:
+                    application/json:
+                      schema:
+                        "${'$'}ref": https://zalando.github.io/problem/schema.yaml#/Problem
+            """.trimIndent()
+
+        val context = Context.createOpenApiContext(content)!!
+        val violations = codes.defaultResponseMustUseProblemType(context)
+
+        assertThat(violations).hasSize(1)
+        assertThat(violations[0].pointer).isEqualTo("#/paths/~1bad/get/responses/default")
     }
 }
