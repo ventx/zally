@@ -155,6 +155,4 @@ definitions:
         items:
           "$ref": "#/definitions/Article"
   Problem:
-    type: object
-    allOf:
-    - "$ref": "https://zalando.github.io/problem/schema.yaml#/Problem"
+    "$ref": "https://zalando.github.io/problem/schema.yaml#/Problem"

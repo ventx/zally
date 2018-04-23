@@ -1,16 +1,15 @@
 package de.zalando.zally.rule.zalando
 
-import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.google.common.io.Resources
 import com.typesafe.config.Config
 import de.zalando.zally.rule.Context
-import de.zalando.zally.rule.ObjectTreeReader
 import de.zalando.zally.rule.api.Check
 import de.zalando.zally.rule.api.Rule
 import de.zalando.zally.rule.api.Severity
 import de.zalando.zally.rule.api.Violation
 import io.swagger.v3.oas.models.PathItem
+import io.swagger.v3.oas.models.media.ObjectSchema
 import io.swagger.v3.oas.models.responses.ApiResponse
 import org.springframework.beans.factory.annotation.Autowired
 
@@ -29,12 +28,7 @@ class UseSpecificHttpStatusCodes(@Autowired rulesConfig: Config) {
 
     private val problemSchema by lazy {
         val schemaUrl = Resources.getResource("schemas/problem-schema.json")
-        val node = ObjectTreeReader().read(schemaUrl)
-        ObjectMapper().convertValue(node, Map::class.java)
-    }
-
-    private val objectMapper by lazy {
-        ObjectMapper().setSerializationInclusion(JsonInclude.Include.NON_NULL)
+        ObjectMapper().readValue(schemaUrl, ObjectSchema::class.java)
     }
 
     @Check(severity = Severity.MUST)
@@ -73,7 +67,7 @@ class UseSpecificHttpStatusCodes(@Autowired rulesConfig: Config) {
 
     private fun isAllowed(response: ApiResponse): Boolean =
         response.content?.all { (_, type) ->
-            val schema = objectMapper.convertValue(type.schema, Map::class.java)
-            problemSchema.keys == schema.keys
+            problemSchema.type == type.schema.type &&
+                problemSchema.properties?.keys == type.schema.properties?.keys
         } ?: true
 }
