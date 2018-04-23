@@ -91,4 +91,25 @@ class MethodCallRecorderTest {
         assertThat(audience).isEqualTo("component-internal")
         assertThat(recorder.pointer).isEqualTo("#/info/vendorExtensions/x-audience")
     }
+
+    @Test
+    fun `get non-existing extension`() {
+        val content = """
+            swagger: '2.0'
+            info:
+              title: Things API
+              description: Description of things
+              version: '1.0.0'
+              x-audience: component-internal
+            paths: {}
+            """.trimIndent()
+
+        val spec = SwaggerParser().parse(content)
+
+        val recorder = MethodCallRecorder(spec).skipMethods("getExtensions", "getVendorExtensions")
+        val specProxy = recorder.proxy
+
+        val apiId = specProxy.info?.vendorExtensions?.get("x-api-id")
+        assertThat(apiId).isNull()
+    }
 }

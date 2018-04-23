@@ -138,6 +138,9 @@ public final class MethodCallRecorder<T> {
                 }
                 if (isGenericContainer(object)) {
                     Class<?> genericReturnValueType = getGenericReturnValueType(parent);
+                    if (genericReturnValueType.equals(Object.class)) {
+                        return null;
+                    }
                     return createProxy(createInstance(genericReturnValueType), m);
                 }
                 return createProxy(createInstance(returnType), m);
