@@ -12,23 +12,23 @@ abstract class RulesValidator<RootT>(val rules: RulesManager) : ApiValidator {
         val root = parse(content) ?: return emptyList()
 
         return rules
-                .checks(policy)
-                .filter { details -> isCheckMethod(details, root) }
-                .flatMap { details -> invoke(details, root) }
-                .sortedBy(Result::violationType)
+            .checks(policy)
+            .filter { details -> isCheckMethod(details, root) }
+            .flatMap { details -> invoke(details, root) }
+            .sortedBy(Result::violationType)
     }
 
     abstract fun parse(content: String): RootT?
 
     private fun isCheckMethod(details: CheckDetails, root: Any) =
-            when (details.method.parameters.size) {
-                1 -> isRootParameterNeeded(details, root)
-                else -> false
-            }
+        when (details.method.parameters.size) {
+            1 -> isRootParameterNeeded(details, root)
+            else -> false
+        }
 
     private fun isRootParameterNeeded(details: CheckDetails, root: Any) =
-            details.method.parameters.isNotEmpty() &&
-                    details.method.parameters[0].type.isAssignableFrom(root::class.java)
+        details.method.parameters.isNotEmpty() &&
+            details.method.parameters[0].type.isAssignableFrom(root::class.java)
 
     private fun invoke(details: CheckDetails, root: RootT): Iterable<Result> {
         log.debug("validating ${details.method.name} of ${details.instance.javaClass.simpleName} rule")
@@ -43,14 +43,18 @@ abstract class RulesValidator<RootT>(val rules: RulesManager) : ApiValidator {
         }
         log.debug("${violations.count()} violations identified")
 
-        // TODO: make pointer not-null
+        // TODO: make pointer not-null and remove usage of `paths`
         return violations
-                .filter {
-                    !ignore(root, it.pointer ?: "#", details.rule.id)
-                }
-                .map {
-                    Result(details.ruleSet, details.rule, it.description, details.check.severity, it.pointer ?: "#")
-                }
+            .filterNot {
+                ignore(root, it.pointer ?: it.paths.firstOrNull() ?: "#", details.rule.id)
+            }
+            .map {
+                if (it.pointer != null)
+                    Result(details.ruleSet, details.rule, it.description, details.check.severity, it.pointer)
+                else
+                    Result(details.ruleSet, details.rule, it.description, details.check.severity, it.paths)
+
+            }
     }
 
     abstract fun ignore(root: RootT, pointer: String, ruleId: String): Boolean

@@ -3,14 +3,6 @@ package de.zalando.zally.rule.zalando
 import de.zalando.zally.openApiWithOperations
 import de.zalando.zally.rule.Context
 import de.zalando.zally.testConfig
-import io.swagger.v3.oas.models.OpenAPI
-import io.swagger.v3.oas.models.Operation
-import io.swagger.v3.oas.models.PathItem
-import io.swagger.v3.oas.models.Paths
-import io.swagger.v3.oas.models.media.Content
-import io.swagger.v3.oas.models.media.MediaType
-import io.swagger.v3.oas.models.responses.ApiResponse
-import io.swagger.v3.oas.models.responses.ApiResponses
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.Test
 
@@ -68,7 +60,7 @@ class UseSpecificHttpStatusCodesTest {
 
     @Test
     fun shouldReportDefaultResponsesWithoutProblemType() {
-        val content = """
+        val content2 = """
         openapi: 3.0.0
         info:
           version: 1.0.0
@@ -83,6 +75,9 @@ class UseSpecificHttpStatusCodesTest {
                     application/json:
                       schema:
                         type: object
+                        properties:
+                          status:
+                            type: string
           "/good":
             get:
               responses:
@@ -100,7 +95,7 @@ class UseSpecificHttpStatusCodesTest {
                         "${'$'}ref": https://zalando.github.io/problem/schema.yaml#/Problem
             """.trimIndent()
 
-        val context = Context.createOpenApiContext(content)!!
+        val context = Context.createOpenApiContext(content2)!!
         val violations = codes.defaultResponseMustUseProblemType(context)
 
         assertThat(violations).hasSize(1)

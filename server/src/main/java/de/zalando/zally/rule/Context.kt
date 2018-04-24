@@ -1,5 +1,6 @@
 package de.zalando.zally.rule
 
+import de.zalando.zally.util.ast.JsonPointers
 import de.zalando.zally.util.ast.MethodCallRecorder
 import de.zalando.zally.util.ast.ReverseAst
 import io.swagger.models.Swagger
@@ -23,7 +24,17 @@ class Context(openApi: OpenAPI, swagger: Swagger? = null) {
     fun isIgnored(pointer: String, ruleId: String): Boolean =
         swaggerAst?.isIgnored(pointer, ruleId) ?: openApiAst.isIgnored(pointer, ruleId)
 
-    fun pointerForValue(value: Any): String? = swaggerAst?.getPointer(value) ?: openApiAst.getPointer(value)
+    fun pointerForValue(value: Any): String? = if (swaggerAst != null) {
+        val swaggerPointer = swaggerAst.getPointer(value)
+        if (swaggerPointer != null)
+            swaggerPointer
+        else {
+            // Attempt to convert an OpenAPI pointer to a Swagger pointer.
+            val openApiPointer = openApiAst.getPointer(value)
+            JsonPointers.convertPointer(openApiPointer) ?: openApiPointer
+        }
+    } else
+        openApiAst.getPointer(value)
 
     companion object {
         val extensionNames = arrayOf("getVendorExtensions", "getExtensions")

@@ -49,4 +49,8 @@ final class Node {
         }
         return children;
     }
+
+    boolean hasChildren() {
+        return children != null && !children.isEmpty();
+    }
 }

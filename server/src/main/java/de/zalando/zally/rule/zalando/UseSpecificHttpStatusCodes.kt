@@ -1,15 +1,19 @@
 package de.zalando.zally.rule.zalando
 
+import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.google.common.io.Resources
 import com.typesafe.config.Config
 import de.zalando.zally.rule.Context
+import de.zalando.zally.rule.JsonSchemaValidator
+import de.zalando.zally.rule.JsonSchemaValidator.ValidationMessage
+import de.zalando.zally.rule.ObjectTreeReader
 import de.zalando.zally.rule.api.Check
 import de.zalando.zally.rule.api.Rule
 import de.zalando.zally.rule.api.Severity
 import de.zalando.zally.rule.api.Violation
 import io.swagger.v3.oas.models.PathItem
-import io.swagger.v3.oas.models.media.ObjectSchema
+import io.swagger.v3.oas.models.media.Schema
 import io.swagger.v3.oas.models.responses.ApiResponse
 import org.springframework.beans.factory.annotation.Autowired
 
@@ -26,9 +30,12 @@ class UseSpecificHttpStatusCodes(@Autowired rulesConfig: Config) {
         .entrySet()
         .map { (key, config) -> (key to config.unwrapped() as List<String>) }.toMap()
 
-    private val problemSchema by lazy {
-        val schemaUrl = Resources.getResource("schemas/problem-schema.json")
-        ObjectMapper().readValue(schemaUrl, ObjectSchema::class.java)
+    private val objectMapper by lazy { ObjectMapper() }
+
+    private val problemSchemaValidator by lazy {
+        val schemaUrl = Resources.getResource("schemas/problem-meta-schema.json")
+        val json = ObjectTreeReader().read(schemaUrl)
+        JsonSchemaValidator("Problem", json)
     }
 
     @Check(severity = Severity.MUST)
@@ -53,10 +60,10 @@ class UseSpecificHttpStatusCodes(@Autowired rulesConfig: Config) {
             pathItem.readOperationsMap().orEmpty()
                 .map { (_, operation) -> operation.responses["default"] }
                 .filterNotNull()
-                .filterNot { isAllowed(it) }
-                .map {
-                    val pointer = context.pointerForValue(it) ?: context.currentPointer
-                    Violation("Default responses must use the Problem type", pointer)
+                .flatMap { testForProblemSchema(it) }
+                .map { (schema, validation) ->
+                    val pointer = (context.pointerForValue(schema) ?: "#") + validation.path
+                    Violation("Default responses require the Problem type: ${validation.message}", pointer)
                 }
         }
     }
@@ -65,9 +72,10 @@ class UseSpecificHttpStatusCodes(@Autowired rulesConfig: Config) {
         allowedStatusCodes[method.name.toLowerCase()].orEmpty().contains(statusCode) ||
             allowedStatusCodes["all"].orEmpty().contains(statusCode)
 
-    private fun isAllowed(response: ApiResponse): Boolean =
-        response.content?.all { (_, type) ->
-            problemSchema.type == type.schema.type &&
-                problemSchema.properties?.keys == type.schema.properties?.keys
-        } ?: true
+    private fun testForProblemSchema(response: ApiResponse): List<Pair<Schema<*>, ValidationMessage>> =
+        response.content?.flatMap { (_, type) ->
+            val node = objectMapper.convertValue(type.schema, JsonNode::class.java)
+            val result = problemSchemaValidator.validate(node)
+            result.messages.map { Pair(type.schema, it) }
+        } ?: emptyList()
 }

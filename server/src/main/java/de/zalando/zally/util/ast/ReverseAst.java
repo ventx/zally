@@ -48,7 +48,8 @@ public class ReverseAst<T> {
             return false;
         }
         boolean ignored = isIgnored(node.marker, ignoreValue);
-        return ignored || node.getChildren().parallelStream().allMatch(child -> isIgnored(child.marker, ignoreValue));
+        return ignored ||
+            (node.hasChildren() && node.getChildren().parallelStream().allMatch(c -> isIgnored(c.marker, ignoreValue)));
     }
 
     private boolean isIgnored(Marker marker, String ignoreValue) {
