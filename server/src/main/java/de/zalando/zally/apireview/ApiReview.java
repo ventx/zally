@@ -85,7 +85,7 @@ public class ApiReview implements Serializable {
                 this,
                 String.format("%s (%s)", v.getRule().title(), v.getRule().id()),
                 v.getViolationType(),
-                1))
+                v.getPaths().size()))
             .collect(Collectors.toList());
 
         this.numberOfEndpoints = EndpointCounter.count(apiDefinition);

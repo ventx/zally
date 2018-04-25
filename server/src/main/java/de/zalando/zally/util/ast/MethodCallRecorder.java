@@ -14,12 +14,21 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
+import static de.zalando.zally.util.ast.Util.PRIMITIVES;
 import static de.zalando.zally.util.ast.Util.getterNameToPointer;
 import static de.zalando.zally.util.ast.Util.rfc6901Encode;
 
+/**
+ * MethodCallRecorder creates a Proxy around an object, typically Swagger or OpenApi, and records
+ * successive method calls as a JSON pointer. Any returned property that is a complex object or
+ * a container will be also wrapped in a Proxy. Null-values will be transformed into non-null
+ * Proxies as well, making it possible to generate JSON pointers for all possible properties.
+ */
 public final class MethodCallRecorder<T> {
     static class MethodCallRecorderException extends Throwable {
         MethodCallRecorderException(String message) {
@@ -30,8 +39,6 @@ public final class MethodCallRecorder<T> {
             super(message, cause);
         }
     }
-
-    private static final Set<Class<?>> PRIMITIVES = new HashSet<>(Util.PRIMITIVES);
 
     static boolean isGetterMethod(Method m) {
         return m.getName().startsWith("get") && m.getReturnType() != null;
@@ -54,8 +61,14 @@ public final class MethodCallRecorder<T> {
         if (c.isAssignableFrom(Map.class)) {
             return (T) new HashMap<>();
         }
-        if (c.isAssignableFrom(Collection.class)) {
+        if (c.isAssignableFrom(List.class)) {
             return (T) new ArrayList<>();
+        }
+        if (c.isAssignableFrom(Set.class)) {
+            return (T) new HashSet<>();
+        }
+        if (c.isArray()) {
+            return (T) new Object[0];
         }
         try {
             Constructor<T> constructor = c.getConstructor();
@@ -81,22 +94,19 @@ public final class MethodCallRecorder<T> {
     static String toPointer(Method m, Object... arguments) {
         String s = m.getName();
         if (arguments.length > 0) {
-            s = s.concat(arguments[0].toString());
+            s = s.concat(Objects.toString(arguments[0]));
         }
         return toPointer(s);
     }
 
     private final T proxy;
     private String currentPointer;
-    private final Set<String> skipMethods;
-    private final IdentityHashMap<Object, String> objectPointerCache;
-    private final IdentityHashMap<Object, IdentityHashMap<Method, String>> methodPointerCache;
+    private final Set<String> skipMethods = new HashSet<>();
+    private final Map<Object, String> objectPointerCache = new IdentityHashMap<>();
+    private final Map<Object, IdentityHashMap<Method, String>> methodPointerCache = new IdentityHashMap<>();
 
     public MethodCallRecorder(T object) {
         this.currentPointer = "#";
-        this.skipMethods = new HashSet<>();
-        this.objectPointerCache = new IdentityHashMap<>();
-        this.methodPointerCache = new IdentityHashMap<>();
         this.proxy = createProxy(object, null);
     }
 
@@ -131,20 +141,28 @@ public final class MethodCallRecorder<T> {
             }
             Object result = m.invoke(invocation.getThis(), arguments);
 
+            // The result is null but we must construct a Proxy of the result type anyway.
             if (result == null) {
                 Class<?> returnType = m.getReturnType();
+                // Primitives are directly returned as null.
                 if (isPrimitive(returnType)) {
                     return null;
                 }
+                // If the object on which the method was called is a generic container we
+                // need some special logic in order to detect the correct return type.
                 if (isGenericContainer(object)) {
                     Class<?> genericReturnValueType = getGenericReturnValueType(parent);
-                    if (genericReturnValueType.equals(Object.class)) {
+                    // If the declared value type of the generic container is a plain object or a primitive,
+                    // it does not make sense to create a new instance. We can simply return null instead.
+                    if (genericReturnValueType.equals(Object.class) || isPrimitive(genericReturnValueType)) {
                         return null;
                     }
                     return createProxy(createInstance(genericReturnValueType), m);
                 }
+                // For all other complex object types we can attempt to simply instantiate them.
                 return createProxy(createInstance(returnType), m);
             }
+            // Primitives are not wrapped in Proxies.
             if (isPrimitive(result)) {
                 return result;
             }
@@ -153,9 +171,17 @@ public final class MethodCallRecorder<T> {
     }
 
     private void updatePointer(Object object, Method method, Object[] arguments) {
+        // Some methods should not be recorded in the JSON pointer string.
         if (skipMethods.contains(method.getName())) {
             return;
         }
+        // In order to prevent multiple successive method calls the the proxied object to
+        // endlessly append new fragments to the JSON pointer string, we must remember already
+        // recorded pointers inside two caches:
+        // objectPointerCache holds "base" pointers with the original objects on which methods are
+        // called as keys.
+        // methodPointerCache is a nested map that holds "method" pointers with the objects and the
+        // called methods as keys.
         final String objectPointer;
         if (objectPointerCache.containsKey(object)) {
             objectPointer = objectPointerCache.get(object);

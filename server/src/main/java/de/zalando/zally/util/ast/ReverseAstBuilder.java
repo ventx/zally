@@ -21,6 +21,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static de.zalando.zally.util.ast.Util.PRIMITIVES;
 import static de.zalando.zally.util.ast.Util.getterNameToPointer;
 import static de.zalando.zally.util.ast.Util.rfc6901Encode;
 
@@ -36,7 +37,6 @@ public class ReverseAstBuilder<T> {
     private final Deque<Node> nodes = new LinkedList<>();
     private final Map<Object, Node> objectsToNodes = new IdentityHashMap<>();
     private final Map<String, Node> pointersToNodes = new HashMap<>();
-    private final Set<Class<?>> ignore = new HashSet<>(Util.PRIMITIVES);
 
     ReverseAstBuilder(T root) {
         nodes.push(new Node(root, "#", null));
@@ -59,12 +59,16 @@ public class ReverseAstBuilder<T> {
         while (!nodes.isEmpty()) {
             Node node = nodes.pop();
 
-            if (!ignore.contains(node.object.getClass())) {
+            if (!PRIMITIVES.contains(node.object.getClass())) {
                 Collection<Node> children;
                 if (node.object instanceof Map) {
                     children = handleMap((Map<?, ?>) node.object, node.pointer, node.marker);
                 } else if (node.object instanceof List) {
                     children = handleList((List<?>) node.object, node.pointer, node.marker);
+                } else if (node.object instanceof Set) {
+                    children = handleSet((Set<?>) node.object, node.pointer, node.marker);
+                } else if (node.object instanceof Object[]) {
+                    children = handleArray((Object[]) node.object, node.pointer, node.marker);
                 } else {
                     children = handleObject(node.object, node.pointer, node.marker);
                 }
@@ -97,10 +101,18 @@ public class ReverseAstBuilder<T> {
     }
 
     private Deque<Node> handleList(List<?> list, String pointer, Marker marker) {
+        return handleArray(list.toArray(), pointer, marker);
+    }
+
+    private Deque<Node> handleSet(Set<?> set, String pointer, Marker marker) {
+        return handleArray(set.toArray(), pointer, marker);
+    }
+
+    private Deque<Node> handleArray(Object[] objects, String pointer, Marker marker) {
         Deque<Node> nodes = new LinkedList<>();
 
-        for (int i = 0; i < list.size(); i++) {
-            Object value = list.get(i);
+        for (int i = 0; i < objects.length; i++) {
+            Object value = objects[i];
             if (value != null) {
                 String newPointer = pointer.concat("/").concat(String.valueOf(i));
                 nodes.push(new Node(value, newPointer, marker));
