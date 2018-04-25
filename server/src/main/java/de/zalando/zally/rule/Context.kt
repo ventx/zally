@@ -10,6 +10,7 @@ import io.swagger.v3.parser.OpenAPIV3Parser
 import io.swagger.v3.parser.converter.SwaggerConverter
 import io.swagger.v3.parser.core.models.ParseOptions
 import io.swagger.v3.parser.util.ResolverFully
+import org.slf4j.LoggerFactory
 
 class Context(openApi: OpenAPI, swagger: Swagger? = null) {
     private val recorder = MethodCallRecorder(openApi).skipMethods(*extensionNames)
@@ -37,6 +38,7 @@ class Context(openApi: OpenAPI, swagger: Swagger? = null) {
         openApiAst.getPointer(value)
 
     companion object {
+        private val log = LoggerFactory.getLogger(Context::class.java)
         val extensionNames = arrayOf("getVendorExtensions", "getExtensions")
 
         fun createOpenApiContext(content: String): Context? {
@@ -56,7 +58,11 @@ class Context(openApi: OpenAPI, swagger: Swagger? = null) {
                 val openApi = SwaggerConverter().convert(it)?.openAPI
 
                 openApi?.let {
-                    ResolverFully(true).resolveFully(it)
+                    try {
+                        ResolverFully(true).resolveFully(it)
+                    } catch (e: NullPointerException) {
+                        log.warn("Failed to fully resolve Swagger schema.", e)
+                    }
                     Context(openApi, swagger)
                 }
             }

@@ -17,7 +17,7 @@ class UseSpecificHttpStatusCodesTest {
         )
         val operations = mapOf(
             "get" to listOf("304") + allowedToAll,
-            "post" to listOf("201", "202", "207", "303") + allowedToAll,
+            "post" to listOf("201", "202", "207", "303", "415") + allowedToAll,
             "put" to listOf("201", "202", "204", "303", "409", "412", "415", "423") + allowedToAll,
             "patch" to listOf("202", "204", "303", "409", "412", "415", "423") + allowedToAll,
             "delete" to listOf("202", "204", "303", "409", "412", "415", "423") + allowedToAll
@@ -38,7 +38,7 @@ class UseSpecificHttpStatusCodesTest {
         )
         val operations = mapOf(
             "get" to listOf("201", "202", "204", "207", "303", "409", "412", "415", "423") + notAllowedAll,
-            "post" to listOf("204", "304", "409", "412", "415", "423") + notAllowedAll,
+            "post" to listOf("204", "304", "409", "412", "423") + notAllowedAll,
             "put" to listOf("304") + notAllowedAll,
             "patch" to listOf("201", "304") + notAllowedAll,
             "delete" to listOf("201", "304") + notAllowedAll
@@ -56,49 +56,5 @@ class UseSpecificHttpStatusCodesTest {
 
         assertThat(violations).isNotEmpty
         assertThat(violations.map { it.pointer }).containsExactlyInAnyOrder(*expectedPointers.toTypedArray())
-    }
-
-    @Test
-    fun shouldReportDefaultResponsesWithoutProblemType() {
-        val content2 = """
-        openapi: 3.0.0
-        info:
-          version: 1.0.0
-          title: Test
-        paths:
-          "/bad":
-            get:
-              responses:
-                default:
-                  description: Bad default response.
-                  content:
-                    application/json:
-                      schema:
-                        type: object
-                        properties:
-                          status:
-                            type: string
-          "/good":
-            get:
-              responses:
-                "200":
-                  description: Good response.
-                  content:
-                    application/json:
-                      schema:
-                        type: object
-                default:
-                  description: Good default response.
-                  content:
-                    application/json:
-                      schema:
-                        "${'$'}ref": https://zalando.github.io/problem/schema.yaml#/Problem
-            """.trimIndent()
-
-        val context = Context.createOpenApiContext(content2)!!
-        val violations = codes.defaultResponseMustUseProblemType(context)
-
-        assertThat(violations).hasSize(1)
-        assertThat(violations[0].pointer).isEqualTo("#/paths/~1bad/get/responses/default")
     }
 }
