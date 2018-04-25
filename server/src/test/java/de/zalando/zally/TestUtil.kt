@@ -4,7 +4,11 @@ import com.fasterxml.jackson.databind.JsonNode
 import com.typesafe.config.Config
 import com.typesafe.config.ConfigFactory
 import de.zalando.zally.rule.ObjectTreeReader
-import io.swagger.models.*
+import io.swagger.models.ModelImpl
+import io.swagger.models.Operation
+import io.swagger.models.Path
+import io.swagger.models.Response
+import io.swagger.models.Swagger
 import io.swagger.models.parameters.HeaderParameter
 import io.swagger.models.properties.StringProperty
 import io.swagger.parser.SwaggerParser

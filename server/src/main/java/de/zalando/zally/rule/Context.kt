@@ -34,8 +34,9 @@ class Context(openApi: OpenAPI, swagger: Swagger? = null) {
             val openApiPointer = openApiAst.getPointer(value)
             JsonPointers.convertPointer(openApiPointer) ?: openApiPointer
         }
-    } else
+    } else {
         openApiAst.getPointer(value)
+    }
 
     companion object {
         private val log = LoggerFactory.getLogger(Context::class.java)

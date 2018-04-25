@@ -49,11 +49,11 @@ abstract class RulesValidator<RootT>(val rules: RulesManager) : ApiValidator {
                 ignore(root, it.pointer ?: it.paths.firstOrNull() ?: "#", details.rule.id)
             }
             .map {
-                if (it.pointer != null)
+                if (it.pointer != null) {
                     Result(details.ruleSet, details.rule, it.description, details.check.severity, it.pointer)
-                else
+                } else {
                     Result(details.ruleSet, details.rule, it.description, details.check.severity, it.paths)
-
+                }
             }
     }
 
