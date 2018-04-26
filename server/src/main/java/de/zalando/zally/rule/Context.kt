@@ -15,7 +15,7 @@ import org.slf4j.LoggerFactory
 class Context(openApi: OpenAPI, swagger: Swagger? = null) {
     private val recorder = MethodCallRecorder(openApi).skipMethods(*extensionNames)
     private val openApiAst = ReverseAst.fromObject(openApi).withExtensionMethodNames(*extensionNames).build()
-    private val swaggerAst = swagger?.let { ReverseAst.fromObject(it).build() }
+    private val swaggerAst = swagger?.let { ReverseAst.fromObject(it).withExtensionMethodNames(*extensionNames).build() }
 
     val api = recorder.proxy
 
