@@ -19,6 +19,7 @@ import (
 	"github.com/zalando/zally/cli/zally/domain"
 	"github.com/zalando/zally/cli/zally/tests"
 	"github.com/zalando/zally/cli/zally/utils"
+	"github.com/zalando/zally/cli/zally/utils/formatters"
 )
 
 var app = cli.NewApp()
@@ -150,7 +151,7 @@ func TestLintFile(t *testing.T) {
 
 		requestBuilder := utils.NewRequestBuilder(testServer.URL, "", app)
 
-		err := lintFile("testdata/minimal_swagger.json", requestBuilder, &utils.MarkdownFormatter{})
+		err := lintFile("testdata/minimal_swagger.json", requestBuilder, &formatters.MarkdownFormatter{})
 
 		tests.AssertEquals(t, nil, err)
 	})
@@ -166,7 +167,7 @@ func TestLintFile(t *testing.T) {
 
 		requestBuilder := utils.NewRequestBuilder(testServer.URL, "", app)
 
-		err := lintFile("testdata/minimal_swagger.json", requestBuilder, &utils.MarkdownFormatter{})
+		err := lintFile("testdata/minimal_swagger.json", requestBuilder, &formatters.MarkdownFormatter{})
 
 		tests.AssertEquals(t, "Failing because: 1 must violation(s) found", err.Error())
 	})
@@ -190,24 +191,16 @@ func TestLint(t *testing.T) {
 		err := lint(getLintContext(testServer.URL, []string{"testdata/minimal_swagger.json"}, "markdown"))
 		tests.AssertEquals(t, nil, err)
 	})
-
-	t.Run("succeed_when_swagger_file_is_specified_and_format_is_pretty", func(t *testing.T) {
-		testServer := startTestServer("testdata/violations_response_without_must_violations.json")
-		defer testServer.Close()
-
-		err := lint(getLintContext(testServer.URL, []string{"testdata/minimal_swagger.json"}, "pretty"))
-		tests.AssertEquals(t, nil, err)
-	})
 }
 
 func getLintContext(url string, args []string, format string) *cli.Context {
 	globalSet := flag.NewFlagSet("test", 0)
 	globalSet.String("linter-service", url, "doc")
 	globalSet.String("token", "test-token", "doc")
+	globalSet.String("format", format, "doc")
 
 	localSet := flag.NewFlagSet("test", 0)
 	localSet.Parse(args)
-	localSet.String("format", format, "doc")
 
 	globalCtx := cli.NewContext(nil, globalSet, nil)
 

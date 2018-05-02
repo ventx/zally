@@ -12,6 +12,7 @@ import (
 	"github.com/urfave/cli"
 	"github.com/zalando/zally/cli/zally/domain"
 	"github.com/zalando/zally/cli/zally/utils"
+	"github.com/zalando/zally/cli/zally/utils/formatters"
 )
 
 // SupportedRulesCommand lists supported rules
@@ -37,12 +38,18 @@ func listRules(c *cli.Context) error {
 		return err
 	}
 
+	formatter, err := formatters.NewFormatter(c.GlobalString("format"))
+	if err != nil {
+		cli.ShowCommandHelp(c, c.Command.Name)
+		return err
+	}
+
 	rules, err := fetchRules(requestBuilder, ruleType)
 	if err != nil {
 		return err
 	}
 
-	printRules(rules)
+	printRules(rules, formatter)
 
 	return nil
 }
@@ -91,10 +98,10 @@ func fetchRules(requestBuilder *utils.RequestBuilder, rulesType string) (*domain
 	return &rules, nil
 }
 
-func printRules(rules *domain.Rules) {
+func printRules(rules *domain.Rules, formatter formatters.Formatter) {
 	var buffer bytes.Buffer
-	var formatter utils.PrettyFormatter
-	resultPrinter := utils.NewResultPrinter(&buffer, &formatter)
+
+	resultPrinter := utils.NewResultPrinter(&buffer, formatter)
 	resultPrinter.PrintRules(rules)
 
 	fmt.Print(buffer.String())
